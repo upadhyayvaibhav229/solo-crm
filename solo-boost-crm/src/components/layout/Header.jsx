@@ -15,16 +15,21 @@ import { Search, Moon, Sun, User, Settings, LogOut } from "lucide-react";
 import NotificationDropdown from "@/components/common/NotificationDropdown";
 import { useTheme } from "@/components/theme-provider";
 import { logout } from "@/services/auth";
+import { toast } from "sonner";
 
 export function Header() {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
-    await logout();
-    navigate({ to: "/login", replace: true });
+    try {
+      await logout();
+    } catch (error) {
+      toast.error(error.message || "Could not sign out");
+    } finally {
+      navigate({ to: "/login", replace: true });
+    }
   };
-
 
   return (
     <header className="sticky top-0 z-30 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b bg-background/95 px-3 py-2.5 backdrop-blur sm:gap-4 sm:px-5">
@@ -75,7 +80,6 @@ export function Header() {
             <DropdownMenuItem onSelect={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" /> Sign out
             </DropdownMenuItem>
-
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

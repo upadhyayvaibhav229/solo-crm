@@ -36,10 +36,7 @@ class FollowUpViewSet(ModelViewSet):
     def perform_create(self, serializer):
         lead_id = self.request.data.get("lead")
 
-        lead = Lead.objects.get(
-            id=lead_id,
-            user=self.request.user
-        )
+        lead = Lead.objects.get(id=lead_id, user=self.request.user)
 
         serializer.save(
             lead=lead

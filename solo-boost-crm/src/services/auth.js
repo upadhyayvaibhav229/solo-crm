@@ -1,4 +1,27 @@
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API =
+  import.meta.env.VITE_API_URL ||
+  `http://${typeof window === "undefined" ? "localhost" : window.location.hostname}:8000/api`;
+
+async function readResponse(response) {
+  const text = await response.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { detail: text };
+  }
+}
+
+export async function refreshSession() {
+  const response = await fetch(`${API}/auth/login/refresh/`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok) return false;
+  return true;
+}
 
 export async function login({ email, password }) {
   const response = await fetch(`${API}/auth/login/`, {
@@ -13,7 +36,7 @@ export async function login({ email, password }) {
     }),
   });
 
-  const data = await response.json();
+  const data = await readResponse(response);
 
   if (!response.ok) {
     throw new Error(data.detail || "Invalid username or password");
@@ -23,11 +46,19 @@ export async function login({ email, password }) {
 }
 
 export async function getMe() {
-  const response = await fetch(`${API}/auth/me/`, {
+  let response = await fetch(`${API}/auth/me/`, {
     credentials: "include",
   });
 
-  const data = await response.json();
+  if (response.status === 401) {
+    if (await refreshSession()) {
+      response = await fetch(`${API}/auth/me/`, {
+        credentials: "include",
+      });
+    }
+  }
+
+  const data = await readResponse(response);
 
   if (!response.ok) {
     throw new Error(data.detail || "Not authenticated");
@@ -41,10 +72,11 @@ export async function logout() {
     method: "POST",
     credentials: "include",
   });
+  const data = await readResponse(response);
 
   if (!response.ok) {
-    throw new Error("Logout failed");
+    throw new Error(data.detail || "Logout failed");
   }
 
-  return response.json();
+  return data;
 }

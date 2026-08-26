@@ -1,14 +1,13 @@
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenObtainPairView, TokenRefreshView
 from django.urls import path
-from .views import RegisterView, me
-from .views import LoginView
+from .views import LoginView, LogoutView, RefreshView, RegisterView, me
 
 urlpatterns = [
 path('login/', LoginView.as_view()),
-    path('login/refresh/', TokenRefreshView.as_view()),   # ← new: renews access token
+    path('login/refresh/', RefreshView.as_view()),
     path('register/', RegisterView.as_view()),
     path('me/', me),
-    path('logout/', TokenBlacklistView.as_view()),
+    path('logout/', LogoutView.as_view()),
 ]
 
 # username = vaibhav

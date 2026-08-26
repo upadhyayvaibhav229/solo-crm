@@ -92,6 +92,7 @@ class FollowUp(models.Model):
         related_name="followups"
     )
 
+
     title = models.CharField(max_length=255)
     notes = models.TextField(blank=True)
 
@@ -102,6 +103,8 @@ class FollowUp(models.Model):
         choices=Status.choices,
         default=Status.PENDING
     )
+    bussiness = models.CharField(max_length=255, blank=True)
+
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -1,6 +1,9 @@
 import { delay } from "./api";
+import { refreshSession } from "./auth";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API =
+  import.meta.env.VITE_API_URL ||
+  `http://${typeof window === "undefined" ? "localhost" : window.location.hostname}:8000/api`;
 
 export const LEAD_STATUSES = [
   "New",
@@ -13,14 +16,20 @@ export const LEAD_STATUSES = [
 ];
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API}${path}`, {
-    ...options,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  const makeRequest = () =>
+    fetch(`${API}${path}`, {
+      ...options,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+  let response = await makeRequest();
+
+  if (response.status === 401 && (await refreshSession())) {
+    response = await makeRequest();
+  }
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {

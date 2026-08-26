@@ -8,7 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -17,6 +17,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { Header } from "@/components/layout/Header";
+import { getMe } from "@/services/auth";
 
 function NotFoundComponent() {
   return (
@@ -102,7 +103,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      // { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
   shellComponent: RootShell,
@@ -127,8 +128,25 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const bare = pathname === "/login";
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    if (bare) return;
+
+    let active = true;
+    getMe()
+      .catch(() => router.navigate({ to: "/login", replace: true }))
+      .finally(() => {
+        if (active) setAuthChecked(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [bare, router]);
 
   if (bare) {
     return (
@@ -140,6 +158,8 @@ function RootComponent() {
       </QueryClientProvider>
     );
   }
+
+  if (!authChecked) return null;
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -161,4 +181,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-
