@@ -179,7 +179,7 @@ function LeadsPage() {
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add lead</DialogTitle>
-            <DialogDescription>Stored locally in V1. Saves to your API later.</DialogDescription>
+            <DialogDescription>This lead will be saved to your CRM.</DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">

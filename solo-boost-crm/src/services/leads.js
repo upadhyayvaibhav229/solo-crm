@@ -1,100 +1,149 @@
-import { leads, PIPELINE_STAGES, activityTimeline } from "./mockData";
-import { delay, clone } from "./api";
+import { delay } from "./api";
 
-let store = clone(leads);
+const API = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
-export const LEAD_STATUSES = PIPELINE_STAGES;
+export const LEAD_STATUSES = [
+  "New",
+  "Contacted",
+  "Interested",
+  "Meeting",
+  "Lost",
+  "Proposal",
+  "Won",
+];
+
+async function request(path, options = {}) {
+  const response = await fetch(`${API}${path}`, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.detail || data?.message || "Lead request failed");
+  }
+  return data;
+}
+
+function mapLead(lead) {
+  return {
+    id: String(lead.id),
+    business: lead.business_name,
+    owner: lead.contact_person || "",
+    category: lead.category || "",
+    location: lead.location || "",
+    phone: lead.phone || "",
+    email: lead.email || "",
+    website: lead.website || "",
+    googleMapsUrl: lead.google_maps_url || "",
+    score: lead.lead_score ?? 0,
+    status: lead.status || "New",
+    priority: lead.priority || "Medium",
+    source: lead.source || "manual",
+    service: lead.service || "",
+    notes: lead.notes || "",
+    lastContact: lead.updated_at || lead.created_at || "",
+    nextFollowUp: "",
+    instagram: "",
+    googleRating: 0,
+    reviews: 0,
+    audit: {
+      mobileFriendly: false,
+      https: Boolean(lead.website?.startsWith("https://")),
+      pageSpeed: false,
+      seoBasics: false,
+      googleBusiness: Boolean(lead.google_maps_url),
+      onlineOrdering: false,
+    },
+    createdAt: lead.created_at,
+    updatedAt: lead.updated_at,
+  };
+}
+
+function toPayload(payload) {
+  return {
+    business_name: payload.business,
+    contact_person: payload.owner || "",
+    category: payload.category || "",
+    location: payload.location || "",
+    phone: payload.phone || "",
+    email: payload.email || "",
+    website: payload.website || "",
+    lead_score: Number(payload.score) || 0,
+    status: payload.status || "New",
+    notes: payload.notes || "",
+    priority: payload.priority || "Medium",
+    source: payload.source || "manual",
+    service: payload.service || "",
+    google_maps_url: payload.googleMapsUrl || "",
+  };
+}
 
 export async function listLeads({ search = "", status = "All", sortBy = "score" } = {}) {
-  let rows = clone(store);
+  const data = await request("/leads/");
+  let rows = (Array.isArray(data) ? data : data?.results || []).map(mapLead);
   if (search) {
     const q = search.toLowerCase();
-    rows = rows.filter(
-      (l) =>
-        l.business.toLowerCase().includes(q) ||
-        l.category.toLowerCase().includes(q) ||
-        l.location.toLowerCase().includes(q),
+    rows = rows.filter((lead) =>
+      [lead.business, lead.category, lead.location].some((value) =>
+        value.toLowerCase().includes(q),
+      ),
     );
   }
-  if (status !== "All") rows = rows.filter((l) => l.status === status);
+  if (status !== "All") rows = rows.filter((lead) => lead.status === status);
   rows.sort((a, b) => {
     if (sortBy === "score") return b.score - a.score;
     if (sortBy === "business") return a.business.localeCompare(b.business);
     if (sortBy === "recent") return (b.lastContact || "").localeCompare(a.lastContact || "");
     return 0;
   });
-  return delay(rows);
+  return rows;
 }
 
 export async function getLead(id) {
-  const lead = store.find((l) => l.id === id);
-  if (!lead) throw new Error("Lead not found");
-  return delay(clone(lead));
+  return mapLead(await request(`/leads/${id}/`));
 }
 
 export async function createLead(payload) {
-  const lead = {
-    id: `LD-${1009 + store.length}`,
-    score: Number(payload.score) || 50,
-    status: payload.status || "New",
-    lastContact: "",
-    nextFollowUp: "",
-    instagram: "",
-    googleRating: 0,
-    reviews: 0,
-    notes: payload.notes || "",
-    audit: {
-      mobileFriendly: false,
-      https: false,
-      pageSpeed: false,
-      seoBasics: false,
-      googleBusiness: false,
-      onlineOrdering: false,
-    },
-    ...payload,
-  };
-  store = [lead, ...store];
-  return delay(clone(lead), 500);
+  return mapLead(
+    await request("/leads/", { method: "POST", body: JSON.stringify(toPayload(payload)) }),
+  );
 }
 
-export async function getLeadActivity(id) {
-  return delay(clone(activityTimeline[id] || []));
+export async function getLeadActivity() {
+  return [];
 }
 
 export async function getPipeline() {
-  const counts = PIPELINE_STAGES.map((stage) => ({
+  const rows = await listLeads();
+  return LEAD_STATUSES.map((stage) => ({
     stage,
-    count: store.filter((l) => l.status === stage).length,
+    count: rows.filter((lead) => lead.status === stage).length,
   }));
-  return delay(counts);
 }
 
-// Mock "AI research" — no external API required.
 export async function researchLead(id) {
-  const lead = store.find((l) => l.id === id);
-  const name = lead ? lead.business : "this business";
+  const lead = await getLead(id);
   return delay(
     {
       generatedAt: new Date().toISOString(),
-      summary: `${name} has steady local demand but a weak digital funnel. Their strongest asset is reputation; the gap is conversion — visitors have no clear way to book, order, or enquire online.`,
-      opportunities: [
-        "No mobile-optimised landing page for local search traffic",
-        "Google Business profile has photos but no website link",
-        "Competitors in the same locality rank higher on 'near me' queries",
-        "Enquiries handled manually on WhatsApp — no capture or tracking",
-      ],
-      pitchAngle:
-        "Lead with lost enquiries, not design. Quantify: ~40 missed monthly enquiries at their ticket size.",
-      suggestedService: "Business Website + SEO",
-      suggestedBudget: "₹40,000 – ₹55,000",
-      confidence: 82,
+      summary: `${lead.business} has a lead record ready for follow-up.`,
+      opportunities: [],
+      pitchAngle: "Use the lead details and notes to prepare a targeted outreach.",
+      suggestedService: lead.service || "Business Website + SEO",
+      suggestedBudget: "",
+      confidence: 0,
     },
-    1400,
+    300,
   );
 }
 
 export async function updateLeadStatus(id, status) {
-  store = store.map((l) => (l.id === id ? { ...l, status } : l));
-  const lead = store.find((l) => l.id === id);
-  return delay(clone(lead), 200);
+  return mapLead(
+    await request(`/leads/${id}/`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  );
 }
