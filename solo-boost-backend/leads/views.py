@@ -7,6 +7,7 @@ from .serializers import (
     FollowUpSerializer,
     CallSerializer,
 )
+from .services.call_processor import process_completed_call
 
 
 class LeadViewSet(ModelViewSet):
@@ -43,6 +44,8 @@ class FollowUpViewSet(ModelViewSet):
         )
 
 
+
+
 class CallViewSet(ModelViewSet):
     serializer_class = CallSerializer
     permission_classes = [IsAuthenticated]
@@ -60,6 +63,17 @@ class CallViewSet(ModelViewSet):
             user=self.request.user
         )
 
-        serializer.save(
-            lead=lead
-        )
+        call = serializer.save(lead=lead)
+
+        # Analyze immediately if call is already completed
+        if call.status == Call.Status.COMPLETED:
+            process_completed_call(call)
+
+    def perform_update(self, serializer):
+        call = serializer.save()
+
+        if (
+            call.status == Call.Status.COMPLETED
+            and call.transcript
+        ):
+            process_completed_call(call)
