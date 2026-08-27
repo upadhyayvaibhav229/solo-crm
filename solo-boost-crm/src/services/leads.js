@@ -123,8 +123,24 @@ export async function createLead(payload) {
   );
 }
 
-export async function getLeadActivity() {
-  return [];
+export async function getLeadActivity(leadId) {
+  const [callsResponse, followUpsResponse] = await Promise.all([
+    request(`/leads/calls/?lead=${leadId}`),
+    request(`/leads/followups/?lead=${leadId}`),
+  ]);
+  const calls = (Array.isArray(callsResponse) ? callsResponse : callsResponse?.results || []).map((call) => ({
+    id: `call-${call.id}`,
+    type: "call",
+    label: `${call.result || "Call"}${call.summary ? ` — ${call.summary}` : ""}`,
+    time: call.created_at || call.updated_at || "",
+  }));
+  const followUps = (Array.isArray(followUpsResponse) ? followUpsResponse : followUpsResponse?.results || []).map((item) => ({
+    id: `followup-${item.id}`,
+    type: "followup",
+    label: `${item.title}${item.notes ? ` — ${item.notes}` : ""}`,
+    time: item.due_date || "",
+  }));
+  return [...calls, ...followUps].sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
 export async function getPipeline() {
