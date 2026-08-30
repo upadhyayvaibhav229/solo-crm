@@ -1,3 +1,6 @@
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 
@@ -8,7 +11,8 @@ from .serializers import (
     CallSerializer,
 )
 from .services.call_processor import process_completed_call
-
+from .services.twilio_service import start_call
+from django.utils import timezone
 
 class LeadViewSet(ModelViewSet):
     serializer_class = LeadSerializer
@@ -77,3 +81,71 @@ class CallViewSet(ModelViewSet):
             and call.transcript
         ):
             process_completed_call(call)
+
+
+class CallViewSet(ModelViewSet):
+    serializer_class = CallSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Call.objects.filter(
+            lead__user=self.request.user
+        )
+
+    def perform_create(self, serializer):
+        lead_id = self.request.data.get("lead")
+
+        lead = Lead.objects.get(
+            id=lead_id,
+            user=self.request.user
+        )
+
+        serializer.save(lead=lead)
+
+    @action(detail=False, methods=["post"], url_path="start")
+    def start_call(self, request):
+        lead_id = request.data.get("lead")
+
+        if not lead_id:
+            return Response(
+                {"detail": "lead is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            lead = Lead.objects.get(
+                id=lead_id,
+                user=request.user
+            )
+        except Lead.DoesNotExist:
+            return Response(
+                {"detail": "Lead not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not lead.phone:
+            return Response(
+                {"detail": "Lead does not have a phone number"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        webhook_url = request.build_absolute_uri(
+            "/api/leads/calls/twilio/webhook/"
+        )
+
+        call_sid = start_call(
+            phone_number=lead.phone,
+            webhook_url=webhook_url
+        )
+
+        call = Call.objects.create(
+            lead=lead,
+            status=Call.Status.SCHEDULED,
+            scheduled_at=timezone.now(),
+        )
+
+        return Response({
+            "message": "Call started",
+            "call_id": call.id,
+            "call_sid": call_sid,
+        })
