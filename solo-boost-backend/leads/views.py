@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
+from twilio.base.exceptions import TwilioRestException
 
 from .models import Lead, FollowUp, Call
 from .serializers import (
@@ -129,14 +131,23 @@ class CallViewSet(ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        webhook_url = request.build_absolute_uri(
-            "/api/leads/calls/twilio/webhook/"
-        )
+        try:
+            call_sid = start_call(
+                phone_number=lead.phone
+            )
+        except TwilioRestException as exc:
+            if exc.code == 573002:
+                detail = (
+                    "This Twilio trial account can only call verified numbers. "
+                    "Verify the lead's phone number in Twilio, or upgrade the account."
+                )
+            else:
+                detail = "Twilio could not start the call. Please check your Twilio settings."
 
-        call_sid = start_call(
-            phone_number=lead.phone,
-            webhook_url=webhook_url
-        )
+            return Response(
+                {"detail": detail},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         call = Call.objects.create(
             lead=lead,

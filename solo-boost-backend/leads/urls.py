@@ -1,7 +1,10 @@
 from rest_framework.routers import DefaultRouter
 from django.urls import path
 
-from .views_twilio import twilio_webhook
+from .views_twilio import (
+    twilio_webhook,
+    process_speech,
+)
 from .views import (
     LeadViewSet,
     FollowUpViewSet,
@@ -33,5 +36,10 @@ urlpatterns = [
         "calls/twilio/webhook/",
         twilio_webhook,
         name="twilio-webhook",
-    ),
-] + router.urls
+        ),
+    path(
+        "calls/twilio/process-speech/",
+        process_speech,
+        name="twilio-process-speech",
+        ),
+    ] + router.urls
